@@ -1,0 +1,12 @@
+{
+  "region": "ap-southeast-1",
+  "app": {
+    "name": "ksulymin-graphics-studio",
+    "framework": "tanstack-start",
+    "httpPort": 3000,
+    "build": {
+      "command": "pnpm run build",
+      "outputDirectory": ".output"
+    }
+  }
+}
