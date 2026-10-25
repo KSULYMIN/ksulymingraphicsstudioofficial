@@ -6,7 +6,9 @@ A polished, mobile-first website for KSULYMIN Graphics Studio. The site presents
 
 - Responsive portfolio, pricing, reviews, testimonial slider, FAQ, statistics, search, and theme switching
 - Netlify Forms for project orders, customer feedback, newsletter signups, and payment screenshot uploads
-- Easypaisa and JazzCash payment instructions with copy-to-clipboard support
+- Manual Easypaisa and JazzCash payment instructions with transaction ID and screenshot submission
+- Saved project reference codes to help link client enquiries and payment proofs
+- Form-level duplicate-submit guards, progress states, browser validation, file-type checks, and accessible status feedback
 - Netlify Image CDN optimization for remote portfolio imagery
 - Accessible navigation, keyboard interactions, reduced-motion support, semantic labels, and visible focus states
 - SEO metadata and structured business data
@@ -27,3 +29,7 @@ netlify dev --port 8889
 ```
 
 Netlify Forms are detected during deployment through `public/__forms.html`. Form submissions should be tested on a deployed preview because local form handling does not exactly match production.
+
+## Payment boundary
+
+The current payment section supports **manual wallet transfers and proof submission only**. It does not create charges, validate a transfer directly with Easypaisa/JazzCash, or automatically mark an invoice as paid. Never request or store a customer's PIN, password, or OTP. A provider-hosted or API-based checkout must be added only after the merchant account, API credentials, callback verification, and refund/dispute flow are configured and tested.
