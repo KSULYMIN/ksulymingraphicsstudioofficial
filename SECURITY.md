@@ -1,21 +1,16 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+The default branch is the supported source line. Security-related dependency changes should be reviewed and production deployments rebuilt from a lockfile that resolves patched package versions.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Please do not publish exploit code, private customer information, payment proof, credentials, or environment-variable values in a public issue. If GitHub private vulnerability reporting is enabled for this repository, use it. Otherwise, contact the repository owner privately through GitHub and include the affected route/package, impact, and a minimal reproducible description.
 
-Use this section to tell people how to report a vulnerability.
+## Operational guidance
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+- Keep GitHub Actions permissions scoped to the job that needs them.
+- Do not place API keys, payment credentials, or other secrets in client-prefixed environment variables.
+- After a security dependency update, verify the resolved lockfile versions, production build, type check, and deployed version.
+- Test payment changes in a provider sandbox before enabling production transactions.
