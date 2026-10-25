@@ -145,7 +145,7 @@ function StudioPage() {
       const saved = window.localStorage.getItem('ksulymin-theme') as 'light' | 'dark' | null
       if (saved === 'light' || saved === 'dark') setTheme(saved)
       const savedReference = window.localStorage.getItem('ksulymin-project-reference')
-      if (savedReference && /^KG-\\d{4}-[A-Z0-9]{6}$/.test(savedReference)) {
+      if (savedReference && /^KG-\d{4}-[A-Z0-9]{6}$/.test(savedReference)) {
         setProjectReference(savedReference)
       }
     } catch {
