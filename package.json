@@ -14,6 +14,8 @@
     "@tanstack/react-router": "1.170.45",
     "@tanstack/react-start": "1.168.60",
     "@tanstack/router-plugin": "1.167.22",
+    "express-openid-connect": "^3.4.0",
+    "highlight.js": "11.11.1",
     "express-openid-connect": "^2.17.1",
     "highlight.js": "11.12.0",
     "lucide-react": "0.576.0",
