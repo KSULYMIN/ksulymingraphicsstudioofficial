@@ -34,11 +34,11 @@ jobs:
       - name: Verify minimum patched TanStack versions
         run: pnpm run security:check
 
-      - name: Type-check
-        run: pnpm run typecheck
-
       - name: Build
         run: pnpm run build
+
+      - name: Type-check generated route tree
+        run: pnpm run typecheck
 
       - name: Export lockfile for review
         uses: actions/upload-artifact@v4
