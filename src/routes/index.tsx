@@ -100,8 +100,12 @@ const prices = [
   { name: 'Signature', price: 'Custom', note: 'For complete brand systems', features: ['Creative direction', 'Full identity toolkit', 'Priority collaboration', 'Flexible deliverables'] },
 ]
 
-const submitNetlifyForm = async (form: HTMLFormElement) => {
+const createProjectReference = () =>
+  `KG-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).padEnd(6, '0').toUpperCase()}`
+
+const submitNetlifyForm = async (form: HTMLFormElement, extraFields: Record<string, string> = {}) => {
   const formData = new FormData(form)
+  Object.entries(extraFields).forEach(([key, value]) => formData.set(key, value))
   const hasFiles = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="file"]'))
     .some((input) => Boolean(input.files?.length))
 
@@ -133,10 +137,20 @@ function StudioPage() {
   const [faqOpen, setFaqOpen] = useState<number | null>(0)
   const [rating, setRating] = useState(5)
   const [showTop, setShowTop] = useState(false)
+  const [submittingForms, setSubmittingForms] = useState<string[]>([])
+  const [projectReference, setProjectReference] = useState('')
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('ksulymin-theme') as 'light' | 'dark' | null
-    if (saved) setTheme(saved)
+    try {
+      const saved = window.localStorage.getItem('ksulymin-theme') as 'light' | 'dark' | null
+      if (saved === 'light' || saved === 'dark') setTheme(saved)
+      const savedReference = window.localStorage.getItem('ksulymin-project-reference')
+      if (savedReference && /^KG-\\d{4}-[A-Z0-9]{6}$/.test(savedReference)) {
+        setProjectReference(savedReference)
+      }
+    } catch {
+      // The site remains usable when browser storage is disabled.
+    }
     const timer = window.setTimeout(() => setLoading(false), 850)
     const onScroll = () => setShowTop(window.scrollY > 650)
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -148,7 +162,11 @@ function StudioPage() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    window.localStorage.setItem('ksulymin-theme', theme)
+    try {
+      window.localStorage.setItem('ksulymin-theme', theme)
+    } catch {
+      // Theme still applies for this session when storage is unavailable.
+    }
   }, [theme])
 
   useEffect(() => {
@@ -205,17 +223,39 @@ function StudioPage() {
   }, [query])
 
   const notify = (message: string) => setToast(message)
+  const isSubmitting = (formName: string) => submittingForms.includes(formName)
 
   const handleForm = (success: string) => async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
+    const formName = form.name
+
+    // The DOM guard prevents a second rapid submit before React rerenders.
+    if (form.dataset.submitting === 'true') return
+    form.dataset.submitting = 'true'
+    setSubmittingForms((current) => [...new Set([...current, formName])])
+
+    const reference = formName === 'order' ? createProjectReference() : ''
     try {
-      await submitNetlifyForm(form)
+      await submitNetlifyForm(form, reference ? { project_reference: reference } : {})
       form.reset()
-      setRating(5)
-      notify(success)
+      if (formName === 'feedback') setRating(5)
+      if (reference) {
+        setProjectReference(reference)
+        try {
+          window.localStorage.setItem('ksulymin-project-reference', reference)
+        } catch {
+          // The confirmation stays visible for the current session.
+        }
+        notify(`${success} Reference: ${reference}.`)
+      } else {
+        notify(success)
+      }
     } catch {
-      notify('Something went wrong. Please try again or contact us on WhatsApp.')
+      notify('We could not confirm this submission. Please retry once, or contact us on WhatsApp if the problem continues.')
+    } finally {
+      form.dataset.submitting = 'false'
+      setSubmittingForms((current) => current.filter((name) => name !== formName))
     }
   }
 
@@ -225,6 +265,16 @@ function StudioPage() {
       notify('Payment number copied to clipboard.')
     } catch {
       notify('Automatic copy was unavailable. Please copy +923125278796 manually.')
+    }
+  }
+
+  const copyProjectReference = async () => {
+    if (!projectReference) return
+    try {
+      await navigator.clipboard.writeText(projectReference)
+      notify('Project reference copied to clipboard.')
+    } catch {
+      notify(`Copy unavailable. Your project reference is ${projectReference}.`)
     }
   }
 
@@ -403,29 +453,33 @@ function StudioPage() {
         <section id="order" className="section order-section grain-section">
           <div className="section-wrap form-split">
             <div className="form-intro"><p className="eyebrow light">Start a project</p><h2 className="section-title">Tell us what you’re <em>building.</em></h2><p>Share the essentials and the studio responds on WhatsApp with the best next step.</p><ul><li><Check />Clear project guidance</li><li><Check />Private file handling</li><li><Check />No-obligation quote</li></ul></div>
-            <form name="order" className="studio-form light-form" encType="multipart/form-data" onSubmit={handleForm('Your project request is in. We’ll reply on WhatsApp soon.')}>
-              <input type="hidden" name="form-name" value="order" /><Honeypot />
-              <div className="field-grid"><Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><SelectField label="Service" name="service" options={services.map((item) => item[1])} /><Field label="Budget (PKR)" name="budget" type="number" required /><Field label="Preferred deadline" name="deadline" type="date" required /><FileField label="Reference file (max 7 MB)" name="attachment" /></div>
-              <label className="full-field">Project details<textarea name="details" rows={5} placeholder="What do you need, and what should the design achieve?" required /></label>
-              <button className="button acid submit-button" type="submit">Send project brief <Send /></button>
+            <form name="order" className="studio-form light-form" encType="multipart/form-data" onSubmit={handleForm('Your project request is in. We’ll reply on WhatsApp soon.')} aria-busy={isSubmitting('order')}>
+              <input type="hidden" name="form-name" value="order" /><input type="hidden" name="project_reference" value={projectReference} /><Honeypot />
+              <div className="field-grid"><Field label="Your name" name="name" required autoComplete="name" /><Field label="WhatsApp number" name="whatsapp" type="tel" required autoComplete="tel" /><SelectField label="Service" name="service" options={services.map((item) => item[1])} /><Field label="Budget (PKR)" name="budget" type="number" min={1} step={1} required /><Field label="Preferred deadline" name="deadline" type="date" required /><FileField label="Reference file (max 7 MB)" name="attachment" /></div>
+              <label className="full-field">Project details<textarea name="details" rows={5} maxLength={3000} placeholder="What do you need, and what should the design achieve?" required /></label>
+              <button className="button acid submit-button" type="submit" disabled={isSubmitting('order')} aria-busy={isSubmitting('order')}>{isSubmitting('order') ? 'Sending brief…' : 'Send project brief'} <Send /></button>
+              {projectReference && <div className="project-reference" aria-live="polite"><div><small>Your latest project reference</small><strong>{projectReference}</strong><p>Keep this code and include it when sending payment proof or asking about your project.</p></div><button type="button" onClick={copyProjectReference}><Copy /> Copy reference</button></div>}
             </form>
           </div>
         </section>
 
         <section id="payment" className="section paper-section">
           <div className="section-wrap payment-layout">
-            <div><p className="eyebrow">Secure payment</p><h2 className="section-title">Simple local <em>payment.</em></h2><p className="lead">Use either digital wallet below, then upload the transaction screenshot for verification.</p>
+            <div><p className="eyebrow">Manual payment</p><h2 className="section-title">Simple local <em>payment.</em></h2><p className="lead">Transfer using one of the listed wallets, then submit your transaction details for manual verification. This page does not process card payments or automatically confirm transfers.</p>
+              <p className="payment-safety">Safety: never share your wallet PIN, password, or one-time verification code (OTP). Confirm the recipient details in your wallet before sending funds.</p>
               <div className="payment-methods">
                 <PaymentCard name="Easypaisa Digital Bank" account="Member Khan" onCopy={copyNumber} />
                 <PaymentCard name="JazzCash" account="MAMBAR KHAN" onCopy={copyNumber} />
               </div>
             </div>
-            <form name="payment-verification" className="studio-form payment-form" encType="multipart/form-data" onSubmit={handleForm('Payment proof received. Verification is now pending.')}>
+            <form name="payment-verification" className="studio-form payment-form" encType="multipart/form-data" onSubmit={handleForm('Payment proof received. Verification is now pending.')} aria-busy={isSubmitting('payment-verification')}>
               <input type="hidden" name="form-name" value="payment-verification" /><Honeypot />
-              <span className="form-icon"><Upload /></span><h3>Verify your payment</h3><p>Upload a clear screenshot showing the transaction ID and amount.</p>
-              <Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><SelectField label="Payment method" name="method" options={['Easypaisa Digital Bank', 'JazzCash']} /><Field label="Amount paid (PKR)" name="amount" type="number" required /><FileField label="Payment screenshot (max 7 MB)" name="screenshot" required accept="image/*" />
-              <button className="button ink-button submit-button" type="submit">I’ve Paid <Check /></button>
-              <small className="verification-note"><Clock3 />Verification usually takes up to 24 hours.</small>
+              <span className="form-icon"><Upload /></span><h3>Submit payment proof</h3><p>Include the exact transaction ID and amount. The studio will check the transfer manually; sending this form is not payment confirmation.</p>
+              <Field label="Your name" name="name" required autoComplete="name" /><Field label="WhatsApp number" name="whatsapp" type="tel" required autoComplete="tel" />
+              <label>Project reference (optional)<input name="project_reference" value={projectReference} onChange={(event) => setProjectReference(event.currentTarget.value)} placeholder="e.g. KG-2026-ABC123" autoComplete="off" /></label>
+              <SelectField label="Payment method" name="method" options={['Easypaisa Digital Bank', 'JazzCash']} /><Field label="Amount paid (PKR)" name="amount" type="number" min={1} step={1} required /><Field label="Transaction ID / reference" name="transaction_id" required maxLength={120} autoComplete="off" /><FileField label="Payment screenshot (max 7 MB)" name="screenshot" required accept="image/png,image/jpeg,image/webp,image/gif" />
+              <button className="button ink-button submit-button" type="submit" disabled={isSubmitting('payment-verification')} aria-busy={isSubmitting('payment-verification')}>{isSubmitting('payment-verification') ? 'Submitting proof…' : 'Submit payment proof'} <Check /></button>
+              <small className="verification-note"><Clock3 />Your proof is pending a manual check. Never send a PIN or OTP.</small>
             </form>
           </div>
         </section>
@@ -433,12 +487,12 @@ function StudioPage() {
         <section id="feedback" className="section soft-section">
           <div className="section-wrap feedback-layout">
             <div><p className="eyebrow">Share your experience</p><h2 className="section-title">Your feedback helps us <em>grow.</em></h2><p className="lead">Completed a project with us? Tell us what worked and what could be even better.</p></div>
-            <form name="feedback" className="studio-form" onSubmit={handleForm('Thank you! Your feedback has been submitted.')}>
+            <form name="feedback" className="studio-form" onSubmit={handleForm('Thank you! Your feedback has been submitted.')} aria-busy={isSubmitting('feedback')}>
               <input type="hidden" name="form-name" value="feedback" /><input type="hidden" name="rating" value={rating} /><Honeypot />
               <div className="field-grid"><Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><Field label="Email (optional)" name="email" type="email" /></div>
               <fieldset className="rating-field"><legend>Your rating</legend><div>{[1, 2, 3, 4, 5].map((star) => <button type="button" key={star} onClick={() => setRating(star)} aria-label={`${star} star${star > 1 ? 's' : ''}`}><Star fill={star <= rating ? 'currentColor' : 'none'} /></button>)}</div></fieldset>
               <label className="full-field">Feedback message<textarea name="message" rows={5} placeholder="Tell us about your experience..." required /></label>
-              <button className="button ink-button submit-button" type="submit">Submit feedback <Send /></button>
+              <button className="button ink-button submit-button" type="submit" disabled={isSubmitting('feedback')} aria-busy={isSubmitting('feedback')}>{isSubmitting('feedback') ? 'Submitting feedback…' : 'Submit feedback'} <Send /></button>
             </form>
           </div>
         </section>
@@ -452,7 +506,7 @@ function StudioPage() {
 
         <section className="map-news-section">
           <div className="map-panel"><iframe title="Map showing KSULYMIN Graphics service area in Pakistan" src="https://www.google.com/maps?q=Pakistan&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div>
-          <div className="newsletter-panel grain-section"><div><p className="eyebrow light">Studio notes</p><h2>Fresh ideas in your inbox.</h2><p>Occasional design tips, new work, and studio updates. Useful, concise, never noisy.</p><form name="newsletter" onSubmit={handleForm('You’re on the list. Welcome to Studio Notes!')}><input type="hidden" name="form-name" value="newsletter" /><Honeypot /><label><span className="sr-only">Email address</span><Mail /><input name="email" type="email" placeholder="Your email address" required /></label><button type="submit" aria-label="Subscribe"><ArrowRight /></button></form></div></div>
+          <div className="newsletter-panel grain-section"><div><p className="eyebrow light">Studio notes</p><h2>Fresh ideas in your inbox.</h2><p>Occasional design tips, new work, and studio updates. Useful, concise, never noisy.</p><form name="newsletter" onSubmit={handleForm('You’re on the list. Welcome to Studio Notes!')} aria-busy={isSubmitting('newsletter')}><input type="hidden" name="form-name" value="newsletter" /><Honeypot /><label><span className="sr-only">Email address</span><Mail /><input name="email" type="email" placeholder="Your email address" autoComplete="email" required /></label><button type="submit" aria-label={isSubmitting('newsletter') ? 'Subscribing' : 'Subscribe'} disabled={isSubmitting('newsletter')}><ArrowRight /></button></form></div></div>
         </section>
 
         <section id="contact" className="section contact-section ink-section grain-section">
@@ -473,8 +527,28 @@ function StudioPage() {
 
 function Honeypot() { return <label className="honeypot">Do not fill this out<input name="bot-field" tabIndex={-1} autoComplete="off" /></label> }
 
-function Field({ label, name, type = 'text', required = false }: { label: string; name: string; type?: string; required?: boolean }) {
-  return <label>{label}<input name={name} type={type} required={required} /></label>
+function Field({
+  label,
+  name,
+  type = 'text',
+  required = false,
+  min,
+  max,
+  step,
+  maxLength,
+  autoComplete,
+}: {
+  label: string
+  name: string
+  type?: string
+  required?: boolean
+  min?: string | number
+  max?: string | number
+  step?: string | number
+  maxLength?: number
+  autoComplete?: string
+}) {
+  return <label>{label}<input name={name} type={type} required={required} min={min} max={max} step={step} maxLength={maxLength} autoComplete={autoComplete ?? (type === 'tel' ? 'tel' : type === 'email' ? 'email' : undefined)} /></label>
 }
 
 function SelectField({ label, name, options }: { label: string; name: string; options: readonly string[] }) {
@@ -510,6 +584,20 @@ function FileField({
       input.value = ''
       setFileName('Choose a file')
       input.setCustomValidity('Please choose a file no larger than 7 MB.')
+      input.reportValidity()
+      return
+    }
+
+    const acceptedTypes = accept.split(',').map((item) => item.trim().toLowerCase())
+    const accepted = acceptedTypes.some((rule) => {
+      if (rule === 'image/*') return file.type.startsWith('image/')
+      if (rule.startsWith('.')) return file.name.toLowerCase().endsWith(rule)
+      return file.type.toLowerCase() === rule
+    })
+    if (!accepted) {
+      input.value = ''
+      setFileName('Choose a file')
+      input.setCustomValidity('Please choose a file in one of the accepted formats.')
       input.reportValidity()
       return
     }
