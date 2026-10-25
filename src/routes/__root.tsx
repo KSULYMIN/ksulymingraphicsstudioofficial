@@ -8,6 +8,7 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
       { title: 'KSULYMIN Graphics Studio | Branding & Graphic Design' },
       { name: 'description', content: 'KSULYMIN Graphics Studio creates distinctive logos, brand identities, business documents, social media designs, and print materials for clients worldwide.' },
+      { name: 'google-site-verification', content: 'vgvw86s7DzsatvqHwpR90DOLAJZNIfFETXaFhlPfnXg' },
       { name: 'keywords', content: 'graphic design Pakistan, logo design, brand identity, social media design, CV design, KSULYMIN Graphics' },
       { name: 'theme-color', content: '#10100f' },
       { property: 'og:title', content: 'KSULYMIN Graphics Studio' },
