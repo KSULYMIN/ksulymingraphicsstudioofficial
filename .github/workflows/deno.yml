@@ -1,49 +1,85 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-# This workflow will install Deno then run `deno lint` and `deno test`.
-# For more information see: https://github.com/denoland/setup-deno
-
-name: Deno
+name: Security and Build Validation
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - hardening/security-seo-2026-10
   pull_request:
-    branches: ["main"]
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
-
     steps:
-      - name: Setup repo
+      - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Setup Deno
-        # uses: denoland/setup-deno@v1
-        uses: denoland/setup-deno@61fe2df320078202e33d7d5ad347e7dcfa0e8f31  # v1.1.2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          deno-version: v1.x
+          node-version: "22"
 
-      # Uncomment this step to verify the use of 'deno fmt' on each commit.
-      # - name: Verify formatting
-      #   run: deno fmt --check
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.5
 
-      - name: Run linter
-        run: deno lint
+      - name: Resolve patched dependency versions and refresh lockfile
+        if: github.event_name == 'push'
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Run tests
-        run: deno test -A
-- name: Download a Build Artifact
-  uses: actions/download-artifact@v3.1.0
-  with:
-    # Artifact name
-    name: # optional
-    # Destination path
-    path: # optional
+      - name: Install locked dependencies for pull requests
+        if: github.event_name == 'pull_request'
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify minimum patched TanStack versions
+        run: pnpm run security:check
+
+      - name: Build production output and generate route tree
+        run: pnpm run build
+
+      - name: Type-check generated route tree
+        run: pnpm run typecheck
+
+      - name: Export regenerated lockfile for the branch
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-pnpm-lockfile
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+
+  commit-lockfile:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hardening/security-seo-2026-10' }}
+    needs: validate
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: hardening/security-seo-2026-10
+
+      - name: Download validated lockfile artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: regenerated-pnpm-lockfile
+          path: lockfile-artifact
+
+      - name: Commit only the generated dependency lockfile
+        run: |
+          cp lockfile-artifact/pnpm-lock.yaml pnpm-lock.yaml
+          if ! git diff --quiet -- pnpm-lock.yaml; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pnpm-lock.yaml
+            git commit -m "chore: refresh pnpm lockfile for TanStack security patch"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

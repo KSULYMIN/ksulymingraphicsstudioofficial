@@ -6,8 +6,6 @@ import {
   BriefcaseBusiness,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Clipboard,
   Clock3,
   Copy,
@@ -41,7 +39,6 @@ import {
   type FormEvent,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 
@@ -74,18 +71,19 @@ const services = [
 ] as const
 
 const portfolio = [
-  { title: 'Nexa Studio Identity', category: 'Logo', image: images.logo, span: 'wide' },
-  { title: 'Aster Brand System', category: 'Branding', image: images.brand, span: 'standard' },
-  { title: 'Executive CV Suite', category: 'Documents', image: images.cv, span: 'standard' },
-  { title: 'MKM Business Essentials', category: 'Print', image: images.business, span: 'standard' },
-  { title: 'Social Launch Campaign', category: 'Social', image: images.social, span: 'standard' },
-  { title: 'Culture Night Poster', category: 'Print', image: images.poster, span: 'standard' },
+  { title: 'Logo concept study', category: 'Logo', image: images.logo, span: 'wide' },
+  { title: 'Brand identity direction', category: 'Branding', image: images.brand, span: 'standard' },
+  { title: 'Executive CV layout', category: 'Documents', image: images.cv, span: 'standard' },
+  { title: 'Business stationery direction', category: 'Print', image: images.business, span: 'standard' },
+  { title: 'Social launch concept', category: 'Social', image: images.social, span: 'standard' },
+  { title: 'Event poster direction', category: 'Print', image: images.poster, span: 'standard' },
 ]
 
-const reviews = [
-  { name: 'Ayesha Noor', role: 'Founder, Anmol Studio', text: 'The identity feels premium, focused, and unmistakably ours. Every file arrived organized and ready to use.', rating: 5 },
-  { name: 'Hamza Iqbal', role: 'Small Business Owner', text: 'Fast communication and an excellent final result. The social media kit gave our launch a professional edge.', rating: 5 },
-  { name: 'Sarah Khan', role: 'Marketing Consultant', text: 'Strong creative thinking, careful revisions, and very clean execution. I would happily work with the studio again.', rating: 5 },
+const processSteps = [
+  { number: '01', title: 'Brief & goals', text: 'We clarify your audience, requirements, deliverables, budget, and deadline before design work begins.' },
+  { number: '02', title: 'Concept direction', text: 'The chosen package defines the concepts and design direction that will be explored.' },
+  { number: '03', title: 'Review & refine', text: 'Feedback is handled within the revision rounds agreed for your project.' },
+  { number: '04', title: 'Final handover', text: 'Approved files are prepared in the formats and deliverables agreed at the start.' },
 ]
 
 const faqs = [
@@ -103,7 +101,24 @@ const prices = [
 ]
 
 const submitNetlifyForm = async (form: HTMLFormElement) => {
-  const response = await fetch('/__forms.html', { method: 'POST', body: new FormData(form) })
+  const formData = new FormData(form)
+  const hasFiles = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="file"]'))
+    .some((input) => Boolean(input.files?.length))
+
+  const requestInit: RequestInit = hasFiles
+    ? { method: 'POST', body: formData }
+    : {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(
+          Array.from(formData.entries()).map(([key, value]) => [
+            key,
+            typeof value === 'string' ? value : value.name,
+          ]),
+        ),
+      }
+
+  const response = await fetch('/__forms.html', requestInit)
   if (!response.ok) throw new Error('Submission failed')
 }
 
@@ -115,7 +130,6 @@ function StudioPage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [portfolioFilter, setPortfolioFilter] = useState('All')
-  const [testimonial, setTestimonial] = useState(0)
   const [faqOpen, setFaqOpen] = useState<number | null>(0)
   const [rating, setRating] = useState(5)
   const [showTop, setShowTop] = useState(false)
@@ -168,24 +182,26 @@ function StudioPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setTestimonial((current) => (current + 1) % reviews.length), 6000)
-    return () => window.clearInterval(timer)
-  }, [])
-
   const filteredPortfolio = useMemo(
     () => portfolio.filter((item) => portfolioFilter === 'All' || item.category === portfolioFilter),
     [portfolioFilter],
   )
 
   const searchResults = useMemo(() => {
-    if (!query.trim()) return []
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    if (!normalizedQuery) return []
+
     const terms = [
       ...services.map((item) => ({ title: item[1], href: '#services', type: 'Service' })),
       ...portfolio.map((item) => ({ title: item.title, href: '#portfolio', type: item.category })),
+      ...prices.map((item) => ({ title: item.name + ' package ' + item.price, href: '#pricing', type: 'Pricing' })),
+      ...processSteps.map((item) => ({ title: item.title, href: '#process', type: 'Process' })),
       ...faqs.map((item) => ({ title: item[0], href: '#faq', type: 'FAQ' })),
     ]
-    return terms.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
+
+    return terms
+      .filter((item) => item.title.toLocaleLowerCase().includes(normalizedQuery))
+      .slice(0, 8)
   }, [query])
 
   const notify = (message: string) => setToast(message)
@@ -204,8 +220,12 @@ function StudioPage() {
   }
 
   const copyNumber = async () => {
-    await navigator.clipboard.writeText('+923125278796')
-    notify('Payment number copied to clipboard.')
+    try {
+      await navigator.clipboard.writeText('+923125278796')
+      notify('Payment number copied to clipboard.')
+    } catch {
+      notify('Automatic copy was unavailable. Please copy +923125278796 manually.')
+    }
   }
 
   return (
@@ -266,12 +286,12 @@ function StudioPage() {
           </div>
         </section>
 
-        <section className="stats-band" aria-label="Studio statistics">
+        <section className="stats-band" aria-label="How the studio works">
           <div className="section-wrap stats-grid">
-            <Counter value={250} suffix="+" label="Projects delivered" />
-            <Counter value={98} suffix="%" label="Happy clients" />
-            <Counter value={7} suffix="+" label="Years creating" />
-            <Counter value={24} suffix="h" label="Average response" />
+            <div className="stat"><strong>Brief-first</strong><span>Goals agreed upfront</span></div>
+            <div className="stat"><strong>Clear scope</strong><span>Deliverables defined</span></div>
+            <div className="stat"><strong>Revisions</strong><span>Included in each package</span></div>
+            <div className="stat"><strong>Digital</strong><span>Remote collaboration</span></div>
           </div>
         </section>
 
@@ -313,8 +333,8 @@ function StudioPage() {
         <section id="portfolio" className="section paper-section">
           <div className="section-wrap">
             <div className="section-heading">
-              <div><p className="eyebrow">Selected work</p><h2 className="section-title">Designed to <em>stand apart.</em></h2></div>
-              <p>A selection of identity, print, document, and social design crafted for real-world use.</p>
+              <div><p className="eyebrow">Visual directions</p><h2 className="section-title">Designed to <em>stand apart.</em></h2></div>
+              <p>Visual directions across identity, print, documents, and social design. Client case studies should be published only when the studio has permission to show the work.</p>
             </div>
             <div className="filter-row" role="group" aria-label="Portfolio filters">
               {['All', 'Logo', 'Branding', 'Documents', 'Print', 'Social'].map((filter) => (
@@ -324,7 +344,7 @@ function StudioPage() {
             <div className="portfolio-grid">
               {filteredPortfolio.map((item, index) => (
                 <article className={`portfolio-card ${item.span}`} key={item.title}>
-                  <img src={imageUrl(item.image, item.span === 'wide' ? 1100 : 760, 700)} alt={`${item.title} graphic design project`} loading="lazy" />
+                  <img src={imageUrl(item.image, item.span === 'wide' ? 1100 : 760, 700)} alt={`${item.title} visual direction reference`} loading="lazy" />
                   <div><span>0{index + 1} · {item.category}</span><h3>{item.title}</h3><ArrowUpRight /></div>
                 </article>
               ))}
@@ -348,25 +368,34 @@ function StudioPage() {
           </div>
         </section>
 
-        <section className="section ink-section testimonial-section" aria-label="Client testimonials">
-          <div className="section-wrap testimonial-wrap">
-            <div className="quote-mark">“</div>
-            <div className="stars" aria-label={`${reviews[testimonial].rating} out of 5 stars`}>{Array.from({ length: 5 }).map((_, index) => <Star key={index} fill="currentColor" />)}</div>
-            <blockquote>{reviews[testimonial].text}</blockquote>
-            <p><strong>{reviews[testimonial].name}</strong><span>{reviews[testimonial].role}</span></p>
-            <div className="slider-controls">
-              <button onClick={() => setTestimonial((testimonial - 1 + reviews.length) % reviews.length)} aria-label="Previous testimonial"><ChevronLeft /></button>
-              <span>{testimonial + 1} / {reviews.length}</span>
-              <button onClick={() => setTestimonial((testimonial + 1) % reviews.length)} aria-label="Next testimonial"><ChevronRight /></button>
+        <section id="process" className="section ink-section">
+          <div className="section-wrap">
+            <div className="section-heading inverse">
+              <div><p className="eyebrow light">How projects move</p><h2 className="section-title">Clear steps.<br /><em>Better collaboration.</em></h2></div>
+              <p>A simple process makes scope, communication, revisions, and delivery easier to understand before a project starts.</p>
+            </div>
+            <div className="service-grid process-grid">
+              {processSteps.map((step) => (
+                <article className="service-card process-card" key={step.number}>
+                  <span className="process-step-number">{step.number}</span>
+                  <h3>{step.title}</h3>
+                  <p>{step.text}</p>
+                </article>
+              ))}
             </div>
           </div>
         </section>
 
-        <section id="reviews" className="section paper-section">
+        <section id="working-standards" className="section paper-section">
           <div className="section-wrap">
-            <div className="section-heading"><div><p className="eyebrow">Customer reviews</p><h2 className="section-title">Kind words.<br /><em>Five-star energy.</em></h2></div><p>Trusted by entrepreneurs, professionals, and growing brands who value good design and clear communication.</p></div>
+            <div className="section-heading">
+              <div><p className="eyebrow">A transparent working style</p><h2 className="section-title">Trust is built <em>into the process.</em></h2></div>
+              <p>Authentic client testimonials and completed case studies should be published only when the studio has confirmed permission and supporting details.</p>
+            </div>
             <div className="review-grid">
-              {reviews.map((review) => <article className="review-card" key={review.name}><div className="stars">{Array.from({ length: review.rating }).map((_, index) => <Star key={index} fill="currentColor" />)}</div><p>“{review.text}”</p><footer><span>{review.name.charAt(0)}</span><div><strong>{review.name}</strong><small>{review.role}</small></div></footer></article>)}
+              <article className="review-card"><h3>Defined deliverables</h3><p>Agree the scope, file formats, usage, timeline, and included deliverables before work starts.</p></article>
+              <article className="review-card"><h3>Clear revisions</h3><p>Use the revision allowance in the selected package and confirm extra work before proceeding.</p></article>
+              <article className="review-card"><h3>Honest proof</h3><p>Show real client feedback and portfolio work only when it is authentic and approved for public display.</p></article>
             </div>
           </div>
         </section>
@@ -376,7 +405,7 @@ function StudioPage() {
             <div className="form-intro"><p className="eyebrow light">Start a project</p><h2 className="section-title">Tell us what you’re <em>building.</em></h2><p>Share the essentials and the studio responds on WhatsApp with the best next step.</p><ul><li><Check />Clear project guidance</li><li><Check />Private file handling</li><li><Check />No-obligation quote</li></ul></div>
             <form name="order" className="studio-form light-form" encType="multipart/form-data" onSubmit={handleForm('Your project request is in. We’ll reply on WhatsApp soon.')}>
               <input type="hidden" name="form-name" value="order" /><Honeypot />
-              <div className="field-grid"><Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><SelectField label="Service" name="service" options={services.map((item) => item[1])} /><Field label="Budget (PKR)" name="budget" type="number" required /><Field label="Preferred deadline" name="deadline" type="date" required /><FileField label="Reference file (max 8MB)" name="attachment" /></div>
+              <div className="field-grid"><Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><SelectField label="Service" name="service" options={services.map((item) => item[1])} /><Field label="Budget (PKR)" name="budget" type="number" required /><Field label="Preferred deadline" name="deadline" type="date" required /><FileField label="Reference file (max 7 MB)" name="attachment" /></div>
               <label className="full-field">Project details<textarea name="details" rows={5} placeholder="What do you need, and what should the design achieve?" required /></label>
               <button className="button acid submit-button" type="submit">Send project brief <Send /></button>
             </form>
@@ -394,7 +423,7 @@ function StudioPage() {
             <form name="payment-verification" className="studio-form payment-form" encType="multipart/form-data" onSubmit={handleForm('Payment proof received. Verification is now pending.')}>
               <input type="hidden" name="form-name" value="payment-verification" /><Honeypot />
               <span className="form-icon"><Upload /></span><h3>Verify your payment</h3><p>Upload a clear screenshot showing the transaction ID and amount.</p>
-              <Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><SelectField label="Payment method" name="method" options={['Easypaisa Digital Bank', 'JazzCash']} /><Field label="Amount paid (PKR)" name="amount" type="number" required /><FileField label="Payment screenshot (max 8MB)" name="screenshot" required />
+              <Field label="Your name" name="name" required /><Field label="WhatsApp number" name="whatsapp" type="tel" required /><SelectField label="Payment method" name="method" options={['Easypaisa Digital Bank', 'JazzCash']} /><Field label="Amount paid (PKR)" name="amount" type="number" required /><FileField label="Payment screenshot (max 7 MB)" name="screenshot" required accept="image/*" />
               <button className="button ink-button submit-button" type="submit">I’ve Paid <Check /></button>
               <small className="verification-note"><Clock3 />Verification usually takes up to 24 hours.</small>
             </form>
@@ -442,29 +471,6 @@ function StudioPage() {
   )
 }
 
-function Counter({ value, suffix, label }: { value: number; suffix: string; label: string }) {
-  const [count, setCount] = useState(0)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) return
-      const start = performance.now()
-      const animate = (time: number) => {
-        const progress = Math.min((time - start) / 1200, 1)
-        setCount(Math.floor(value * (1 - Math.pow(1 - progress, 3))))
-        if (progress < 1) requestAnimationFrame(animate)
-      }
-      requestAnimationFrame(animate)
-      observer.disconnect()
-    }, { threshold: 0.5 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [value])
-  return <div className="stat" ref={ref}><strong>{count}{suffix}</strong><span>{label}</span></div>
-}
-
 function Honeypot() { return <label className="honeypot">Do not fill this out<input name="bot-field" tabIndex={-1} autoComplete="off" /></label> }
 
 function Field({ label, name, type = 'text', required = false }: { label: string; name: string; type?: string; required?: boolean }) {
@@ -475,9 +481,52 @@ function SelectField({ label, name, options }: { label: string; name: string; op
   return <label>{label}<select name={name} required defaultValue=""><option value="" disabled>Select an option</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>
 }
 
-function FileField({ label, name, required = false }: { label: string; name: string; required?: boolean }) {
+function FileField({
+  label,
+  name,
+  required = false,
+  accept = 'image/*,.pdf,.doc,.docx',
+  maxBytes = 7 * 1024 * 1024,
+}: {
+  label: string
+  name: string
+  required?: boolean
+  accept?: string
+  maxBytes?: number
+}) {
   const [fileName, setFileName] = useState('Choose a file')
-  return <label className="file-field">{label}<span><Upload /><b>{fileName}</b><input name={name} type="file" accept="image/*,.pdf,.doc,.docx" required={required} onChange={(event: ChangeEvent<HTMLInputElement>) => setFileName(event.target.files?.[0]?.name || 'Choose a file')} /></span></label>
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.setCustomValidity('')
+
+    if (!file) {
+      setFileName('Choose a file')
+      return
+    }
+
+    if (file.size > maxBytes) {
+      input.value = ''
+      setFileName('Choose a file')
+      input.setCustomValidity('Please choose a file no larger than 7 MB.')
+      input.reportValidity()
+      return
+    }
+
+    setFileName(file.name)
+  }
+
+  return (
+    <label className="file-field">
+      {label}
+      <span>
+        <Upload />
+        <b>{fileName}</b>
+        <input name={name} type="file" accept={accept} required={required} onChange={handleFileChange} />
+      </span>
+    </label>
+  )
 }
 
 function PaymentCard({ name, account, onCopy }: { name: string; account: string; onCopy: () => void }) {
