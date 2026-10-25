@@ -3,6 +3,7 @@ name: Security and Build Validation
 on:
   push:
     branches:
+      - main
       - hardening/security-seo-2026-10
   pull_request:
     branches:
@@ -31,11 +32,11 @@ jobs:
           version: 9.15.5
 
       - name: Resolve patched dependency versions and refresh lockfile
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/hardening/security-seo-2026-10'
         run: pnpm install --no-frozen-lockfile
 
-      - name: Install locked dependencies for pull requests
-        if: github.event_name == 'pull_request'
+      - name: Install locked dependencies for main and pull requests
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         run: pnpm install --frozen-lockfile
 
       - name: Verify minimum patched TanStack versions
@@ -48,7 +49,7 @@ jobs:
         run: pnpm run typecheck
 
       - name: Export regenerated lockfile for the branch
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/hardening/security-seo-2026-10'
         uses: actions/upload-artifact@v4
         with:
           name: regenerated-pnpm-lockfile
