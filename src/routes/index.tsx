@@ -101,7 +101,24 @@ const prices = [
 ]
 
 const submitNetlifyForm = async (form: HTMLFormElement) => {
-  const response = await fetch('/__forms.html', { method: 'POST', body: new FormData(form) })
+  const formData = new FormData(form)
+  const hasFiles = Array.from(form.querySelectorAll<HTMLInputElement>('input[type="file"]'))
+    .some((input) => Boolean(input.files?.length))
+
+  const requestInit: RequestInit = hasFiles
+    ? { method: 'POST', body: formData }
+    : {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(
+          Array.from(formData.entries()).map(([key, value]) => [
+            key,
+            typeof value === 'string' ? value : value.name,
+          ]),
+        ),
+      }
+
+  const response = await fetch('/__forms.html', requestInit)
   if (!response.ok) throw new Error('Submission failed')
 }
 
@@ -171,13 +188,20 @@ function StudioPage() {
   )
 
   const searchResults = useMemo(() => {
-    if (!query.trim()) return []
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    if (!normalizedQuery) return []
+
     const terms = [
       ...services.map((item) => ({ title: item[1], href: '#services', type: 'Service' })),
       ...portfolio.map((item) => ({ title: item.title, href: '#portfolio', type: item.category })),
+      ...prices.map((item) => ({ title: item.name + ' package ' + item.price, href: '#pricing', type: 'Pricing' })),
+      ...processSteps.map((item) => ({ title: item.title, href: '#process', type: 'Process' })),
       ...faqs.map((item) => ({ title: item[0], href: '#faq', type: 'FAQ' })),
     ]
-    return terms.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())).slice(0, 7)
+
+    return terms
+      .filter((item) => item.title.toLocaleLowerCase().includes(normalizedQuery))
+      .slice(0, 8)
   }, [query])
 
   const notify = (message: string) => setToast(message)
